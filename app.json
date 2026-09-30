@@ -1,16 +1,18 @@
 {
   "expo": {
-    "name": "qos-scaffold",
-    "slug": "qos-scaffold",
+    "name": "Network QoS Monitor",
+    "slug": "network-qos-monitor",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "qosscaffold",
+    "scheme": "networkqos",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.qosmonitor.app"
     },
     "android": {
+      "package": "com.qosmonitor.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
