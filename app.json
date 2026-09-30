@@ -13,7 +13,9 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Ubica tus mediciones de red en el mapa de cobertura.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Registra la cobertura de red mientras la app está en segundo plano.",
-        "UIBackgroundModes": ["fetch"]
+        "UIBackgroundModes": [
+          "fetch"
+        ]
       }
     },
     "android": {
@@ -63,7 +65,8 @@
           "minimumFetchInterval": 15
         }
       ],
-      "react-native-maps"
+      "react-native-maps",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,

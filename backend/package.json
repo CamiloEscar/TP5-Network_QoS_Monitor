@@ -1,0 +1,17 @@
+{
+  "name": "tp5-qos-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servicio de referencia de throughput (download/upload) para el TP5 Network QoS Monitor",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
