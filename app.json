@@ -9,7 +9,12 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.qosmonitor.app"
+      "bundleIdentifier": "com.qosmonitor.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Ubica tus mediciones de red en el mapa de cobertura.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Registra la cobertura de red mientras la app está en segundo plano.",
+        "UIBackgroundModes": ["fetch"]
+      }
     },
     "android": {
       "package": "com.qosmonitor.app",
@@ -19,6 +24,15 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_PHONE_STATE",
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE",
+        "POST_NOTIFICATIONS",
+        "ACCESS_BACKGROUND_LOCATION"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -27,6 +41,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       [
         "expo-splash-screen",
         {
@@ -34,7 +49,21 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Ubica tus mediciones de red en el mapa de cobertura.",
+          "locationAlwaysAndWhenInUsePermission": "Registra la cobertura de red mientras la app está en segundo plano."
+        }
+      ],
+      [
+        "react-native-background-fetch",
+        {
+          "minimumFetchInterval": 15
+        }
+      ],
+      "react-native-maps"
     ],
     "experiments": {
       "typedRoutes": true,
