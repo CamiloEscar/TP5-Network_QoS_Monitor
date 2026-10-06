@@ -1,16 +1,14 @@
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
+import type { CancellationToken } from "@/features/probes";
+import { createCancellationToken } from "@/features/probes";
 import type {
   NetworkSnapshot,
   CellularGeneration,
 } from "@/features/network/use-network";
 import { queryMeasurements } from "@/features/storage/measurements";
-import {
-  endSession as endSessionRow,
-  insertSession,
-  listSessions,
-} from "@/features/storage/sessions";
+import { listSessions } from "@/features/storage/sessions";
 import {
   DEFAULT_SETTINGS,
   getSettings,
@@ -18,12 +16,16 @@ import {
   type Settings,
   type SettingsPatch,
 } from "@/features/storage/settings";
-import {
-  newId,
-  type HistoryFilter,
-  type MeasurementRecord,
-  type SessionSummary,
+import type {
+  HistoryFilter,
+  MeasurementRecord,
+  SessionSummary,
 } from "@/features/storage/types";
+import {
+  startSession as startSessionRow,
+  endSession as endSessionRow,
+} from "@/features/session/session";
+import { runMeasurement } from "@/features/session/run-measurement";
 
 export type TelephonyInfo = {
   carrier: string | null;
@@ -72,21 +74,7 @@ export type StoreState = {
   setFilter: (f: Partial<HistoryFilter>) => void;
 };
 
-type CancelToken = { readonly cancelled: boolean; cancel(): void };
-
-function createToken(): CancelToken {
-  let cancelled = false;
-  return {
-    get cancelled() {
-      return cancelled;
-    },
-    cancel() {
-      cancelled = true;
-    },
-  };
-}
-
-let activeToken: CancelToken | null = null;
+let activeToken: CancellationToken | null = null;
 
 export const store = createStore<StoreState>()((set, get) => ({
   network: {
@@ -101,17 +89,60 @@ export const store = createStore<StoreState>()((set, get) => ({
   settings: DEFAULT_SETTINGS,
   history: { sessions: [], filter: {}, rows: [], loading: false },
 
-  // ponytail: stub hasta T2.6/T2.7 (orquestador runMeasurement) — solo transiciones de estado
-  startMeasurement: async () => {
-    activeToken = createToken();
-    set((s) => ({
-      run: {
-        ...s.run,
-        status: "error",
-        error: "Motor de medición pendiente (T2.6)",
-        progress: null,
-      },
-    }));
+  startMeasurement: async (opts) => {
+    if (get().run.status !== "idle") return;
+
+    let sessionId = get().session.activeId;
+    if (!sessionId) {
+      sessionId = await startSessionRow();
+      set({ session: { activeId: sessionId, startedAt: Date.now() } });
+    }
+
+    const token = createCancellationToken();
+    activeToken = token;
+    set((s) => ({ run: { ...s.run, status: "probing", error: null } }));
+
+    const stageToStatus = {
+      rtt: "probing",
+      throughput: "throughput",
+      persisting: "persisting",
+    } as const;
+
+    try {
+      const record = await runMeasurement(
+        { throughput: opts?.throughput, quick: opts?.quick, sessionId },
+        token,
+        {
+          network: get().network,
+          settings: get().settings,
+          onProgress: (p) => {
+            set((s) => ({
+              run: { ...s.run, status: stageToStatus[p.stage], progress: p },
+            }));
+          },
+        },
+      );
+      set((s) => ({
+        run: {
+          ...s.run,
+          status: "idle",
+          progress: null,
+          lastMeasurement: record,
+          error: null,
+        },
+      }));
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") {
+        set((s) => ({
+          run: { ...s.run, status: "idle", progress: null, error: null },
+        }));
+      } else {
+        const message = e instanceof Error ? e.message : String(e);
+        set((s) => ({ run: { ...s.run, status: "error", error: message } }));
+      }
+    } finally {
+      activeToken = null;
+    }
   },
 
   cancelMeasurement: () => {
@@ -123,14 +154,8 @@ export const store = createStore<StoreState>()((set, get) => ({
   },
 
   startSession: async (label?: string) => {
-    const session = {
-      id: newId(),
-      startedAt: Date.now(),
-      endedAt: null,
-      label: label ?? null,
-    };
-    await insertSession(session);
-    set({ session: { activeId: session.id, startedAt: session.startedAt } });
+    const id = await startSessionRow(label);
+    set({ session: { activeId: id, startedAt: Date.now() } });
   },
 
   endSession: async () => {
