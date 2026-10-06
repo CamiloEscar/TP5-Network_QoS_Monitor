@@ -40,7 +40,7 @@ type TelephonyFields = {
   cellularGeneration?: CellularGeneration | null;
 };
 
-function toSnapshot(state: NetInfoState): NetworkSnapshot {
+export function toSnapshot(state: NetInfoState): NetworkSnapshot {
   const common = {
     type: state.type as NetworkType,
     isConnected: state.isConnected ?? false,
