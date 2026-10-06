@@ -1,4 +1,5 @@
 import TcpSocket from "react-native-tcp-socket";
+import { probeTcpConnect } from "../telephony/index.ts";
 import type { TcpProber } from "./types.ts";
 
 export const socketProber: TcpProber = {
@@ -25,5 +26,11 @@ export const socketProber: TcpProber = {
       socket.on("timeout", () => finish(null));
       socket.on("error", () => finish(null));
     });
+  },
+};
+
+export const nativeProber: TcpProber = {
+  async connect(host, port, timeoutMs) {
+    return probeTcpConnect(host, port, timeoutMs);
   },
 };
