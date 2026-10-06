@@ -196,6 +196,10 @@ export function useLastMeasurement(): MeasurementRecord | null {
   return useStore(store, (s) => s.run.lastMeasurement);
 }
 
+export function useRun(): StoreState["run"] {
+  return useStore(store, (s) => s.run);
+}
+
 export function useActiveSession(): StoreState["session"] {
   return useStore(store, (s) => s.session);
 }
