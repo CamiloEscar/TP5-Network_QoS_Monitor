@@ -2,9 +2,10 @@ import { Share } from "react-native";
 
 import type { MeasurementRecord } from "@/features/storage/types";
 
-const CSV_COLUMNS: Array<
-  [string, (r: MeasurementRecord) => string | number | null]
-> = [
+const CSV_COLUMNS: [
+  string,
+  (r: MeasurementRecord) => string | number | null,
+][] = [
   ["id", (r) => r.id],
   ["sessionId", (r) => r.sessionId],
   ["ts", (r) => r.ts],
