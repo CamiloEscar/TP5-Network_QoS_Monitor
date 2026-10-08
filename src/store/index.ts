@@ -1,11 +1,12 @@
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
+import NetInfo from "@react-native-community/netinfo";
 
 import type { CancellationToken } from "@/features/probes";
 import { createCancellationToken } from "@/features/probes";
-import type {
-  NetworkSnapshot,
-  CellularGeneration,
+import {
+  toSnapshot,
+  type CellularGeneration,
 } from "@/features/network/use-network";
 import { queryMeasurements } from "@/features/storage/measurements";
 import { listSessions } from "@/features/storage/sessions";
@@ -46,7 +47,6 @@ export type RunProgress = {
 };
 
 export type StoreState = {
-  network: NetworkSnapshot;
   telephony: TelephonyInfo | null;
   run: {
     status: RunStatus;
@@ -77,12 +77,6 @@ export type StoreState = {
 let activeToken: CancellationToken | null = null;
 
 export const store = createStore<StoreState>()((set, get) => ({
-  network: {
-    type: "unknown",
-    isConnected: false,
-    isInternetReachable: false,
-    isExpensive: false,
-  },
   telephony: null,
   run: { status: "idle", progress: null, lastMeasurement: null, error: null },
   session: { activeId: null, startedAt: null },
@@ -109,11 +103,12 @@ export const store = createStore<StoreState>()((set, get) => ({
     } as const;
 
     try {
+      const network = toSnapshot(await NetInfo.fetch());
       const record = await runMeasurement(
         { throughput: opts?.throughput, quick: opts?.quick, sessionId },
         token,
         {
-          network: get().network,
+          network,
           settings: get().settings,
           onProgress: (p) => {
             set((s) => ({

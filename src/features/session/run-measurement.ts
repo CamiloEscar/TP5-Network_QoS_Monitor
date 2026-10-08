@@ -1,6 +1,6 @@
 import type { CancellationToken } from "@/features/probes";
 import { runRttProbes, socketProber } from "@/features/probes";
-import { getFix } from "@/features/geo/location";
+import { ensureForegroundPermission, getFix } from "@/features/geo/location";
 import { insertMeasurement } from "@/features/storage/measurements";
 import type { Settings } from "@/features/storage/settings";
 import {
@@ -125,6 +125,10 @@ export async function runMeasurement(
   }
 
   if (token.cancelled) throw abortError();
+
+  // Prompting here (not in getFix) keeps background sampling prompt-free.
+  // A denied or failed request must not block the measurement: coords go null.
+  await ensureForegroundPermission().catch(() => false);
 
   const fix = await getFix();
 

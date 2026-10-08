@@ -1,62 +1,57 @@
-import Constants from "expo-constants";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { StyleSheet } from "react-native";
-import MapView, {
-  Circle,
-  Heatmap,
-  Marker,
-  PROVIDER_GOOGLE,
-} from "react-native-maps";
+import { WebView } from "react-native-webview";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Spacing } from "@/constants/theme";
-import { toHeatPoints } from "@/features/geo/heatmap";
 import { qualityOf } from "@/features/network/quality";
 import { queryMeasurements } from "@/features/storage/measurements";
 import type { MeasurementRecord } from "@/features/storage/types";
 import { useSettings } from "@/store";
 
-const hasGoogleKey = Boolean(
-  Constants.expoConfig?.android?.config?.googleMaps?.apiKey,
-);
+type MapPoint = {
+  lat: number;
+  lon: number;
+  color: string;
+  accurate: boolean;
+};
 
-function hexToRgba(hex: string, alpha: number): string {
-  const n = parseInt(hex.replace("#", ""), 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function regionFromRecords(records: MeasurementRecord[]) {
-  const points = records.filter((r) => r.lat != null && r.lon != null);
-  if (points.length === 0) return null;
-
-  if (points.length === 1) {
-    return {
-      latitude: points[0].lat!,
-      longitude: points[0].lon!,
-      latitudeDelta: 0.02,
-      longitudeDelta: 0.02,
-    };
-  }
-
-  const lats = points.map((p) => p.lat!);
-  const lons = points.map((p) => p.lon!);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLon = Math.min(...lons);
-  const maxLon = Math.max(...lons);
-  const pad = 0.01;
-
-  return {
-    latitude: (minLat + maxLat) / 2,
-    longitude: (minLon + maxLon) / 2,
-    latitudeDelta: maxLat - minLat + pad * 2,
-    longitudeDelta: maxLon - minLon + pad * 2,
-  };
+function buildHtml(points: MapPoint[]): string {
+  const center = points[0] ?? { lat: 0, lon: 0 };
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
+  <style>html,body,#map{height:100%;margin:0;padding:0;}</style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+  <script>
+    const map = L.map('map').setView([${center.lat}, ${center.lon}], 15);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map);
+    const points = ${JSON.stringify(points)};
+    const bounds = [];
+    points.forEach((p) => {
+      bounds.push([p.lat, p.lon]);
+      if (p.accurate) {
+        L.circle([p.lat, p.lon], { radius: 40, color: p.color, fillColor: p.color, fillOpacity: 0.35, weight: 0 }).addTo(map);
+      }
+      L.circleMarker([p.lat, p.lon], { radius: 6, color: '#1f2937', fillColor: p.color, fillOpacity: 1, weight: 1 }).addTo(map);
+    });
+    if (bounds.length > 1) map.fitBounds(bounds, { padding: [32, 32] });
+  </script>
+</body>
+</html>`;
 }
 
 export default function MapScreen() {
@@ -64,23 +59,40 @@ export default function MapScreen() {
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    queryMeasurements()
-      .then(setRecords)
-      .finally(() => setLoading(false));
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      queryMeasurements()
+        .then(setRecords)
+        .finally(() => setLoading(false));
+    }, []),
+  );
 
-  const heatPoints = useMemo(
-    () => toHeatPoints(records, settings.geo.maxAccuracyM),
+  const points = useMemo<MapPoint[]>(
+    () =>
+      records
+        .filter((r) => r.lat != null && r.lon != null)
+        .map((r) => {
+          const synthetic = {
+            isConnected: true,
+            type: r.networkType,
+            cellularGeneration: r.cellularGeneration,
+            isInternetReachable: true,
+            isExpensive: false,
+            wifiStrength: null,
+          };
+          return {
+            lat: r.lat!,
+            lon: r.lon!,
+            color: qualityOf(synthetic).color,
+            accurate:
+              r.accuracy != null && r.accuracy <= settings.geo.maxAccuracyM,
+          };
+        }),
     [records, settings.geo.maxAccuracyM],
   );
 
-  const pointRecords = useMemo(
-    () => records.filter((r) => r.lat != null && r.lon != null),
-    [records],
-  );
-
-  const region = useMemo(() => regionFromRecords(records), [records]);
+  const html = useMemo(() => buildHtml(points), [points]);
 
   return (
     <ThemedView style={styles.container}>
@@ -97,76 +109,31 @@ export default function MapScreen() {
           >
             Cargando mediciones...
           </ThemedText>
-        ) : records.length === 0 || !region ? (
+        ) : points.length === 0 ? (
           <ThemedText
             type="small"
             themeColor="textSecondary"
             style={styles.message}
           >
-            Todavía no hay mediciones registradas. Hacé una medición desde
-            Monitor para ver el mapa de cobertura.
+            {records.length === 0
+              ? "Todavía no hay mediciones registradas. Hacé una medición desde Monitor para ver el mapa de cobertura."
+              : "Hay mediciones, pero ninguna tiene ubicación. Concedé el permiso de ubicación y hacé una nueva medición para que los puntos aparezcan en el mapa."}
           </ThemedText>
         ) : (
           <>
             <ThemedView style={styles.mapContainer}>
-              <MapView
+              <WebView
                 style={styles.map}
-                provider={hasGoogleKey ? PROVIDER_GOOGLE : undefined}
-                initialRegion={region}
-              >
-                {hasGoogleKey ? (
-                  <Heatmap points={heatPoints} radius={40} opacity={0.7} />
-                ) : (
-                  <>
-                    {pointRecords.map((record) => {
-                      const synthetic = {
-                        isConnected: true,
-                        type: record.networkType,
-                        cellularGeneration: record.cellularGeneration,
-                        isInternetReachable: true,
-                        isExpensive: false,
-                        wifiStrength: null,
-                      };
-                      const accurate =
-                        record.accuracy != null &&
-                        record.accuracy <= settings.geo.maxAccuracyM;
-                      return (
-                        <Fragment key={record.id}>
-                          {accurate && (
-                            <Circle
-                              center={{
-                                latitude: record.lat!,
-                                longitude: record.lon!,
-                              }}
-                              radius={40}
-                              fillColor={hexToRgba(
-                                qualityOf(synthetic).color,
-                                0.35,
-                              )}
-                              strokeWidth={0}
-                            />
-                          )}
-                          <Marker
-                            coordinate={{
-                              latitude: record.lat!,
-                              longitude: record.lon!,
-                            }}
-                          />
-                        </Fragment>
-                      );
-                    })}
-                  </>
-                )}
-              </MapView>
+                originWhitelist={["*"]}
+                source={{ html }}
+              />
             </ThemedView>
             <ThemedText
               type="small"
               themeColor="textSecondary"
               style={styles.message}
             >
-              {hasGoogleKey
-                ? "Mapa de calor de cobertura (Google Maps)"
-                : "Vista de cobertura por puntos (sin API key de Google Maps configurada — fallback de círculos)"}
+              Vista de cobertura por puntos (OpenStreetMap, sin API key)
             </ThemedText>
           </>
         )}

@@ -10,8 +10,6 @@ import type {
 
 export * from "./types.ts";
 
-const RANDOM_CHUNK = 65536;
-
 export function computeMbps(bytes: number, ms: number): number {
   if (
     !Number.isFinite(bytes) ||
@@ -73,9 +71,11 @@ function wrapFetchError(e: unknown, signal: AbortSignal, what: string): Error {
 }
 
 function randomBytes(n: number): Uint8Array {
+  // Hermes no expone Web Crypto global; el payload es solo relleno para medir
+  // throughput de subida, no necesita ser criptográficamente seguro.
   const out = new Uint8Array(n);
-  for (let off = 0; off < n; off += RANDOM_CHUNK) {
-    crypto.getRandomValues(out.subarray(off, Math.min(off + RANDOM_CHUNK, n)));
+  for (let i = 0; i < n; i++) {
+    out[i] = (Math.random() * 256) | 0;
   }
   return out;
 }

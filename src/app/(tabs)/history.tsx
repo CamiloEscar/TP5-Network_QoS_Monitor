@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CartesianChart, Line } from "victory-native";
@@ -119,9 +120,17 @@ export default function HistoryScreen() {
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      setRefreshKey((k) => k + 1);
+    }, []),
+  );
+
   useEffect(() => {
     listSessions().then(setSessions);
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     const filter: HistoryFilter = {
@@ -130,7 +139,7 @@ export default function HistoryScreen() {
       sessionId: selectedSessionId ?? undefined,
     };
     queryMeasurements(filter).then(setRecords);
-  }, [selectedTypes, datePreset, selectedSessionId]);
+  }, [selectedTypes, datePreset, selectedSessionId, refreshKey]);
 
   function toggleType(t: NetworkType) {
     setSelectedTypes((prev) =>
